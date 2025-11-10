@@ -1,0 +1,329 @@
+<?php
+/**
+ * Plugin Name: Car Valuation (VRM -> Valuation Page) 
+ * Description: Shortcode-based VRM+mileage form and valuation page + lead capture. Stores leads (CPT) and pushes to FluentCRM.
+ * Version: 0.1
+ * Author: Mufasser Islam
+ * Text Domain: car-valuation
+ */
+ 
+if (!defined('ABSPATH')) exit;
+
+class CV_Plugin {
+    public function __construct() {
+        register_activation_hook(__FILE__, array($this, 'activate'));
+        add_action('init', array($this, 'register_cpt'));
+        add_shortcode('car_valuation_form', array($this, 'shortcode_form'));
+        add_shortcode('car_valuation_result', array($this, 'shortcode_result'));
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_assets'));
+        add_action('admin_init', array($this, 'maybe_create_result_page'));
+        add_action('wp_loaded', array($this, 'handle_lead_submission')); // handles lead form post
+    }
+        
+
+    public function activate() {
+        $this->register_cpt();
+        $this->maybe_create_result_page();
+        flush_rewrite_rules();
+    }
+
+    public function register_cpt() {
+        register_post_type('cv_lead', array(
+            'label' => 'Car Valuation Leads',
+            'public' => false,
+            'show_ui' => true,
+            'supports' => array('title','custom-fields'),
+        ));
+    }
+
+    public function enqueue_assets() {
+
+
+        // script
+        wp_enqueue_script('ukv-bootstrap-script','https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.min.js', [], '5.2.3');
+        // style
+        wp_enqueue_style('ukv-bootstrap-style','https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css',[],'5.2.3');
+        
+
+        wp_register_script('cv-main', plugin_dir_url(__FILE__) . 'assets/cv-main.js', array('jquery'), '0.1', true);
+        wp_register_style('cv-main-css', plugin_dir_url(__FILE__) . 'assets/cv-main.css');
+        wp_localize_script('cv-main', 'cv_ajax', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('cv_nonce')
+        ));
+        wp_enqueue_style('cv-main-css');
+        wp_enqueue_script('cv-main');
+    }
+
+    /**
+     * Shortcode: [car_valuation_form page="home"]
+     * Renders VRM + mileage form. Submits to page /car-valuation-result/ (you can change slug)
+     */
+    public function shortcode_form($atts) {
+
+        $atts = shortcode_atts(array('page' => 'unknown'), $atts, 'car_valuation_form');
+        $page_source = esc_attr($atts['page']);
+
+        // Find/ensure result page slug: 'car-valuation-result'
+        $result_page = get_page_by_path('car-valuation-result');
+        $action_url = $result_page ? get_permalink($result_page->ID) : site_url('/car-valuation-result/');
+
+        ob_start();
+        ?>
+        <section>
+        <div class="container vehicle-search-form-container">
+            <form method="post" action="<?php echo esc_url($action_url); ?>" id="form-search-vehicle-form" class="cv-vrm-form form vehicle-search-form">
+                <?php wp_nonce_field('cv_vrm_submit', 'cv_vrm_nonce'); ?>
+                <input type="hidden" name="cv_source_page" value="<?php echo esc_attr($page_source); ?>">
+                <div class="row">
+                    <div class="col-md-12">
+                          <div class="input-box">
+                            <input class="vrm registration-ui" autocomplete="off" type="text" maxlength="7" name="cv_vrm" placeholder="VRM">
+                            <span class="unit">GB</span>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <div class="controls">
+                                <input type="text" class="form-control millage-input" required name="cv_mileage" placeholder="Millage" id="current-mileage">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <button type="submit" title="Value My Car"class="btn btn-block btn-primary button"><span>Get Valuation</span></a>
+                    </div>
+                </div> <!-- row -->
+            </form>
+        </div> <!-- container -->
+    </section>
+    <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Shortcode: [car_valuation_result]
+     * Displays vehicle info (calls external API), and shows lead capture form
+     */
+    public function shortcode_result() {
+        // Accept POST (from VRM form) or GET (fallback)
+        $vrm = isset($_POST['cv_vrm']) ? sanitize_text_field($_POST['cv_vrm']) : (isset($_GET['cv_vrm']) ? sanitize_text_field($_GET['cv_vrm']) : '');
+        $mileage = isset($_POST['cv_mileage']) ? intval($_POST['cv_mileage']) : (isset($_GET['cv_mileage']) ? intval($_GET['cv_mileage']) : '');
+        $source_page = isset($_POST['cv_source_page']) ? sanitize_text_field($_POST['cv_source_page']) : (isset($_GET['cv_source_page']) ? sanitize_text_field($_GET['cv_source_page']) : '');
+
+        if (empty($vrm)) {
+            return '<p>Please enter VRM and mileage from the search form.</p>';
+        }
+
+        // Call external valuation API - placeholder function below.
+        $valuation = $this->call_valuation_api($vrm, $mileage);
+
+        ob_start();
+        ?>
+        <div class="cv-result-wrap">
+            <h2>Valuation for <?php echo esc_html(strtoupper($vrm)); ?></h2>
+
+            <?php if (is_wp_error($valuation)) : ?>
+                <p>Error getting valuation: <?php echo esc_html($valuation->get_error_message()); ?></p>
+            <?php else: ?>
+                <div class="cv-vehicle">
+                    <?php if (!empty($valuation['image'])): ?>
+                        <img src="<?php echo esc_url($valuation['image']); ?>" alt="Vehicle image" style="max-width:300px;">
+                    <?php endif; ?>
+                    <ul>
+                        <li>Make: <?php echo esc_html($valuation['make'] ?? '—'); ?></li>
+                        <li>Model: <?php echo esc_html($valuation['model'] ?? '—'); ?></li>
+                        <li>Year: <?php echo esc_html($valuation['year'] ?? '—'); ?></li>
+                        <li>Mileage (provided): <?php echo esc_html(number_format($mileage)); ?></li>
+                        <li>Trade Good: <?php echo esc_html($valuation['trade_good'] ?? '—'); ?></li>
+                        <li>Trade Poor: <?php echo esc_html($valuation['trade_poor'] ?? '—'); ?></li>
+                    </ul>
+                </div>
+
+                <hr>
+
+                <h3>Get full valuation — leave your details</h3>
+                <form method="post" class="cv-lead-form">
+                    <?php wp_nonce_field('cv_lead_submit', 'cv_lead_nonce'); ?>
+                    <input type="hidden" name="cv_action" value="submit_lead">
+                    <input type="hidden" name="cv_vrm" value="<?php echo esc_attr($vrm); ?>">
+                    <input type="hidden" name="cv_mileage" value="<?php echo esc_attr($mileage); ?>">
+                    <input type="hidden" name="cv_source_page" value="<?php echo esc_attr($source_page); ?>">
+
+                    <p><label>Name<br><input type="text" name="cv_name" required></label></p>
+                    <p><label>Email<br><input type="email" name="cv_email" required></label></p>
+                    <p><label>Phone<br><input type="text" name="cv_phone" required></label></p>
+                    <p><label>Postcode<br><input type="text" name="cv_postcode"></label></p>
+                    <p>
+                        <label>Any major vehicle damage or issues?</label><br>
+                        <label><input type="radio" name="cv_damage" value="no" checked> No</label>
+                        <label><input type="radio" name="cv_damage" value="yes"> Yes</label>
+                    </p>
+                    <p>
+                        <label><input type="checkbox" name="cv_agree_1" value="1" required> I agree to be contacted regarding this valuation.</label><br>
+                        <label><input type="checkbox" name="cv_agree_2" value="1" required> I accept the privacy policy.</label>
+                    </p>
+                    <p><button type="submit">Submit details & view full valuation</button></p>
+                </form>
+            <?php endif; ?>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Placeholder: call the external valuation API.
+     * Replace with real API call once you share the endpoint.
+     * Should return array with keys: image, make, model, year, trade_good, trade_poor
+     */
+    private function call_valuation_api($vrm, $mileage) {
+        // Example: return dummy data for now.
+        // Replace with wp_remote_post() or wp_remote_get() to your valuation provider.
+            
+        return array(
+            'image' => '', // url
+            'make' => 'Toyota',
+            'model' => 'Corolla',
+            'year' => '2018',
+            'trade_good' => '£6,200',
+            'trade_poor' => '£5,100'
+        );
+    }
+
+    /**
+     * Handles lead submission: saves as CPT and triggers FluentCRM push.
+     */
+    public function handle_lead_submission() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return;
+        if (!isset($_POST['cv_action']) || $_POST['cv_action'] !== 'submit_lead') return;
+        if (!isset($_POST['cv_lead_nonce']) || !wp_verify_nonce($_POST['cv_lead_nonce'], 'cv_lead_submit')) {
+            wp_die('Security check failed');
+        }
+
+        $name = sanitize_text_field($_POST['cv_name'] ?? '');
+        $email = sanitize_email($_POST['cv_email'] ?? '');
+        $phone = sanitize_text_field($_POST['cv_phone'] ?? '');
+        $postcode = sanitize_text_field($_POST['cv_postcode'] ?? '');
+        $damage = sanitize_text_field($_POST['cv_damage'] ?? 'no');
+        $vrm = sanitize_text_field($_POST['cv_vrm'] ?? '');
+        $mileage = intval($_POST['cv_mileage'] ?? 0);
+        $source = sanitize_text_field($_POST['cv_source_page'] ?? '');
+
+        if (empty($email) || empty($name)) {
+            // You may want to redirect back with an error
+            return;
+        }
+
+        // Save as custom post
+        $lead_id = wp_insert_post(array(
+            'post_title' => $name . ' | ' . $vrm,
+            'post_type' => 'cv_lead',
+            'post_status' => 'publish'
+        ));
+
+        if (!is_wp_error($lead_id)) {
+            update_post_meta($lead_id, 'cv_email', $email);
+            update_post_meta($lead_id, 'cv_phone', $phone);
+            update_post_meta($lead_id, 'cv_postcode', $postcode);
+            update_post_meta($lead_id, 'cv_damage', $damage);
+            update_post_meta($lead_id, 'cv_vrm', $vrm);
+            update_post_meta($lead_id, 'cv_mileage', $mileage);
+            update_post_meta($lead_id, 'cv_source', $source);
+        }
+
+        // Prepare data for FluentCRM
+        $lead_data = array(
+            'email' => $email,
+            'first_name' => $name,
+            'phone' => $phone,
+            'meta' => array(
+                'postcode' => $postcode,
+                'vrm' => $vrm,
+                'mileage' => $mileage,
+                'damage' => $damage,
+                'source_page' => $source,
+                'cv_lead_id' => $lead_id
+            )
+        );
+
+        // 1) Preferred: Use FluentCRM PHP API (if available). Fallback to REST
+        if (function_exists('FluentCrmApi')) {
+            try {
+                $contactsApi = FluentCrmApi('contacts'); // returns contacts API if available
+                if ($contactsApi) {
+                    // create or update contact (method names may differ based on version)
+                    $contactsApi->createOrUpdate($lead_data); // many FluentCRM versions have createOrUpdate
+                }
+            } catch (Exception $e) {
+                // Fallback: REST
+                $this->push_to_fluentcrm_rest($lead_data);
+            }
+        } else {
+            // 2) Fallback: call REST endpoint
+            $this->push_to_fluentcrm_rest($lead_data);
+        }
+
+        // After success redirect to same page with a ?submitted=1 or show success
+        $redirect_to = wp_get_referer() ?: home_url();
+        $redirect_to = add_query_arg('cv_submitted', '1', $redirect_to);
+        wp_safe_redirect($redirect_to);
+        exit;
+    }
+
+    /**
+     * Push to FluentCRM via REST API (/wp-json/fluent-crm/v2/subscribers or /subscribers)
+     * NOTE: You must create an API key in FluentCRM settings and provide it here, or use app passwords/basic auth.
+     */
+    private function push_to_fluentcrm_rest($lead_data) {
+        $site = rtrim(site_url(), '/');
+        $endpoint = $site . '/wp-json/fluent-crm/v2/subscribers'; // common REST endpoint
+        $body = array('subscriber' => array(
+            'email' => $lead_data['email'],
+            'first_name' => $lead_data['first_name'],
+            'phone' => $lead_data['phone'],
+            'status' => 'subscribed',
+            'meta' => $lead_data['meta'],
+        ));
+
+        // Use an API key created in FluentCRM Settings -> Rest API (or use Application Password)
+        $api_key = get_option('cv_fluentcrm_api_key'); // store in WP options (create admin settings later)
+        $args = array(
+            'body' => wp_json_encode($body),
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+                'X-WP-Nonce' => wp_create_nonce('wp_rest') // optional, depends on your auth method
+            ),
+            'timeout' => 15,
+        );
+
+        // If you choose to use Basic Auth with a FluentCRM API key, you may need to pass Authorization header.
+        if (!empty($api_key)) {
+            $args['headers']['Authorization'] = 'Bearer ' . $api_key;
+        }
+
+        $resp = wp_remote_post($endpoint, $args);
+        // optionally log or inspect response for debugging
+    }
+
+    /**
+     * Ensure a result page exists (slug 'car-valuation-result') so forms can post to it.
+     */
+    public function maybe_create_result_page() {
+        $slug = 'car-valuation-result';
+        $page = get_page_by_path($slug);
+        if (!$page) {
+            // create page with shortcode
+            wp_insert_post(array(
+                'post_title' => 'Car Valuation Result',
+                'post_name' => $slug,
+                'post_status' => 'publish',
+                'post_type' => 'page',
+                'post_content' => '[car_valuation_result]'
+            ));
+        }
+    }
+}
+
+new CV_Plugin();
