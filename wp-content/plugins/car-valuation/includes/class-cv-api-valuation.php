@@ -27,10 +27,12 @@ class CV_API_Valuation {
         } 
 
         $endpoint = add_query_arg($params,$this->api_base);
-
         $response = wp_remote_get( $endpoint, array( 'timeout' => 20 ) );
 
+        
+        
         if ( is_wp_error( $response ) ) {
+            print_r($response);
             return $response;
         }
 
@@ -45,8 +47,41 @@ class CV_API_Valuation {
             return new WP_Error( 'api_failed', __( 'Vehicle data not found or invalid response.', 'car-valuation' ), $body );
         }
 
-        // $data = json_decode(wp_remote_retrieve_body($response), true);
-        return $this->prepare_vehicle_valuation( $body );
+        // die("Valuation: " . $endpoint);
+
+
+        $customer_data = [
+            'name' => sanitize_text_field( $_POST['cv_name'] ),
+            'email' => sanitize_email( $_POST['cv_email'] ),
+            'phone' => sanitize_text_field( $_POST['cv_phone'] ),
+            'postcode' => sanitize_text_field( $_POST['cv_postcode'] ),
+            'cv_damage' => sanitize_text_field( $_POST['cv_damage'] ),
+            'cv_policy_agree' => sanitize_text_field( $_POST['cv_policy_agree'] ),
+            'cv_agree_to_contact' => sanitize_text_field( $_POST['cv_agree_to_contact'] ),
+            ];
+        
+        $vehicle_data = unserialize( base64_decode( sanitize_text_field( $_POST['vehicle_data'])));
+        $vehicle_image_data = unserialize( base64_decode( sanitize_text_field( $_POST['vehicle_image_data'])));
+
+        // valuation and price adjustments
+        $valuation_info = $this->prepare_vehicle_valuation( $body );
+        $adjustments =  [
+            'global' => -15
+        ];
+        $adjusted_prices = $this->prepare_prices_for_customer( $valuation_info['prices'], $adjustments );
+        
+        // $valuation_data = [];
+        // $vehicle_image_url = $vehicle_image_data['Image'];
+
+        $response = [
+            'vehicle_data'=>$vehicle_data,
+            'vehicle_image_data'=>$vehicle_image_data,
+            'prices'=>$valuation_info['prices'],
+            'adjusted_prices'=>$adjusted_prices,
+            'customer_data'=>$customer_data
+        ];
+
+        return $response;
     }
 
     /**
@@ -76,14 +111,14 @@ class CV_API_Valuation {
         $tradeAverage = $valuationFigures['TradeAverage'] ?? null;
         $tradePoor = $valuationFigures['TradePoor'] ?? null;
 
-
-
-        // vehicle description
-        return [
+        $valuation_base_data = [
             'valuationMilage' => $valuationMilage,
             'valuationTime' => $valuationTime,
             'vehicleDescription' => $vehicleDescription,
-            'dateOfFirstRegistration' => $dateOfFirstRegistration,
+            'dateOfFirstRegistration' => $dateOfFirstRegistration
+        ];
+
+        $valuationPrices = [
             'onTheRoad' => $onTheRoad,
             'dealerForecourt' => $dealerForecourt,
             'tradeRetail' => $tradeRetail,
@@ -94,6 +129,60 @@ class CV_API_Valuation {
             'tradeAverage' => $tradeAverage,
             'tradePoor' => $tradePoor
         ];
+
+
+        // vehicle description
+        return [
+            'valuation_base_data' => $valuation_base_data, 
+            'prices' => $valuationPrices
+        ];
+    }
+
+    private function prepare_prices_for_customer( $valuation_data, $adjustments = [] ) {
+
+        // if the input is invalid or empty, just return it
+        if ( empty( $valuation_data ) || ! is_array( $valuation_data ) ) {
+            return $valuation_data;
+        }
+
+        // Clone the array so we don't mutate original
+        $adjusted = $valuation_data;
+
+        // Optional: global adjustment key
+        $global_percentage = $adjustments['global'] ?? 0;
+
+        // Define which keys are considered price fields
+        $price_keys = [
+            'onTheRoad',
+            'dealerForecourt',
+            'tradeRetail',
+            'privateClean',
+            'privateAverage',
+            'partExchange',
+            'auction',
+            'tradeAverage',
+            'tradePoor',
+        ];
+
+        foreach ( $price_keys as $key ) {
+            if ( isset( $adjusted[$key] ) && is_numeric( $adjusted[$key] ) ) {
+                // Get specific adjustment for this key if set, otherwise use global
+                $percentage = $adjustments[$key] ?? $global_percentage;
+
+                // Apply adjustment
+                $factor = 1 + ( $percentage / 100 );
+                $adjusted[$key] = round( $adjusted[$key] * $factor, 2 );
+            }
+        }
+
+        // Add note for tracking
+        $adjusted['AdjustmentMeta'] = [
+            'AppliedAt' => current_time( 'mysql' ),
+            'GlobalAdjustment' => $global_percentage,
+            'IndividualAdjustments' => $adjustments,
+        ];
+
+        return $adjusted;
     }
 
     

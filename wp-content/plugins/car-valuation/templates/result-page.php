@@ -1,6 +1,7 @@
 <?php
 // print_r($vehicle_image_data);
-// print_r($vehicle_data);
+$vehicle_image_data_set = base64_encode(serialize($vehicle_image_data));
+$vehicle_data_set = base64_encode(serialize($vehicle_data));
 // echo $vehicle_image_data['Image'];
 ?>
 <div class="cv-result-container">
@@ -15,11 +16,13 @@
     </div>
 
     <!-- Lead Form -->
-    <form action="" method="post" class="cv-lead-form">
+    <form action="" method="post" class="cv-lead-form" id="cv-lead-form">
 
         <input type="hidden" name="cv_vrm" value="<?php echo esc_attr($_GET['cv_vrm'] ?? ''); ?>">
         <input type="hidden" name="cv_mileage" value="<?php echo esc_attr($_GET['cv_mileage'] ?? ''); ?>">
         <input type="hidden" name="cv_page_source" value="<?php echo esc_attr($_GET['cv_page_source'] ?? 'unknown'); ?>">
+        <input type="hidden" name="vehicle_data" value="<?php echo $vehicle_data_set; ?>">
+        <input type="hidden" name="vehicle_image_data" value="<?php echo $vehicle_image_data_set; ?>">
 
         <div class="cv-form-row">
             <div class="cv-form-group">

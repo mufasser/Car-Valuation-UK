@@ -75,6 +75,8 @@ input.vrm {
     padding:10px;
 }
 
+
+
 #overlay {
     position: fixed;
     z-index: 9999;
@@ -101,33 +103,63 @@ input.vrm {
     padding: 40px;
     box-shadow: 0 0 15px #CCC;
 }
-  #form-get-your-valuation-now .form-group,
-  #form-search-vehicle-form  .form-group{
-    margin-bottom: 20px;
-  }
+#form-get-your-valuation-now .form-group,
+#form-search-vehicle-form  .form-group{
+  margin-bottom: 20px;
+}
 
-  #form-get-your-valuation-now input, #form-get-your-valuation-now select,
-  #form-search-vehicle-form input, #form-search-vehicle-form select{
-    line-height: 25px;
-    padding: 10px;
+#form-get-your-valuation-now input, #form-get-your-valuation-now select,
+#form-search-vehicle-form input, #form-search-vehicle-form select{
+  line-height: 25px;
+  padding: 10px;
+}
+#form-get-your-valuation-now label{
+  color: #000 !important;
+  font-size: 16px;
+}
+.vehicle-your-details{
+  padding: 25px;
+  box-shadow: -10px 0 10px #EEE;
+}
+.valuation-available.desktop{
+  display: block  ;
   }
-  #form-get-your-valuation-now label{
-    color: #000 !important;
-    font-size: 16px;
+.valuation-available.mobile{
+  display: none  ;
   }
-  .vehicle-your-details{
-    padding: 25px;
-    box-shadow: -10px 0 10px #EEE;
-  }
-  .valuation-available.desktop{
-    display: block  ;
-    }
-  .valuation-available.mobile{
-    display: none  ;
-    }
 
 .valuation-unavailable{
     display: none;
+}
+
+/* Search Form inline style */
+.vehicle-search-form-container.cv-form-inline{
+  padding: 10px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0px 2px 3px #999;
+}
+.vehicle-search-form-container.cv-form-inline form{
+    display: flex;
+    justify-content: space-evenly;
+    align-items: center;
+    gap: 20px;
+}
+.vehicle-search-form-container.cv-form-inline .registration-ui{
+  width: 245px !important;
+}
+
+.vehicle-search-form-container.cv-form-inline .millage-input{
+  margin: 0px !important; 
+  height: 62px;
+  width: 200px !important;
+}
+
+.vehicle-search-form-container.cv-form-inline .controls{
+  margin: 0px !important;
+}
+.vehicle-search-form-container.cv-form-inline .btn-cv{
+  height: 61px;
 }
 
 /* 
@@ -136,6 +168,7 @@ input.vrm {
 } */
 
 @media (min-width: 981px){
+  
 .et_right_sidebar #main-content .container:before {
   right: 0% !important;
   }
@@ -186,6 +219,21 @@ input.vrm {
     .vehicle-search-form-container{
       margin: 0px !important;
       padding: 0px !important;
+      width: 100% !important;
+    }
+    .vehicle-search-form-container.cv-form-inline form{
+      flex-direction: column;
+    }
+    .vehicle-search-form-container.cv-form-inline .registration-ui{
+      width: 100% !important;
+    }
+    .vehicle-search-form-container.cv-form-inline .millage-input{
+      margin: 0px !important; 
+      height: 62px;
+      width: 100% !important;
+    }
+    
+    .vehicle-search-form-container.cv-form-inline .btn-cv{
       width: 100% !important;
     }
 
@@ -491,4 +539,54 @@ input.vrm {
     cursor: pointer;
     width: 100%;
     transition: background 0.3s;
+}
+
+
+/* Thank you page */
+.cv-thankyou-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0;
+}
+.cv-card {
+  /* background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  max-width: 460px; */
+  width: 100%;
+  text-align: center;
+  padding: 0px 30px;
+}
+.cv-car-image {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+.cv-card h2 {
+  font-size: 1.6rem;
+  margin-bottom: 10px;
+}
+.cv-price {
+  font-size: 1.1rem;
+  margin: 5px 0;
+}
+.cv-message {
+  color: #555;
+  margin: 15px 0 25px;
+  line-height: 1.5;
+}
+.cv-call-btn {
+  display: inline-block;
+  background: #000;
+  color: #fff !important;
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: background 0.3s ease;
+}
+.cv-call-btn:hover {
+  background: #333;
 }

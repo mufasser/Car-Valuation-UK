@@ -12,6 +12,7 @@ class CV_Shortcodes {
         $atts = shortcode_atts(
             array(
                 'page' => 'unknown', // default page if not passed
+                'display' => 'cv-form-block', // default form display if not passed
             ),
             $atts,
             'cv_search_form'
@@ -19,11 +20,13 @@ class CV_Shortcodes {
 
         // Make page source available to template
         $cv_page_source = sanitize_text_field($atts['page']);
+        $form_display = sanitize_text_field($atts['display']);
 
         ob_start();
         // Pass variable to template
         CV_Template_Loader::get_template('form-search.php', array(
-            'cv_page_source' => $cv_page_source
+            'cv_page_source' => $cv_page_source,
+            'form_display' => $form_display
         ));
         return ob_get_clean();
     }
@@ -37,7 +40,8 @@ class CV_Shortcodes {
         $cv_page_source = isset($_GET['cv_page_source']) ? sanitize_text_field($_GET['cv_page_source']) : '';
 
         if (empty($cv_vrm)) {
-            return '<p>Please enter a valid registration number.</p>';
+            // return do_shortcode('[car_valuation_form page="' . $cv_page_source . '"]').'<p>Please enter a valid registration number. <a href="' . site_url('/') . '">Go back to search form</a></p>';
+            return do_shortcode('[car_valuation_form page="' . $cv_page_source . '"]').'<p>Please enter a valid registration number.</p>';
         }
 
 

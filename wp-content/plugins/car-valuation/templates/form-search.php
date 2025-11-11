@@ -1,4 +1,4 @@
-<div class="vehicle-search-form-container">
+<div class="vehicle-search-form-container <?php echo esc_attr($form_display ?? 'cv-form-block'); ?>">
     <form action="<?php echo esc_url(site_url('/car-valuation-result')); ?>" method="get" class="cv-vrm-form form vehicle-search-form">
         <input type="hidden" name="car_valuation_result" value="1">
         <input type="hidden" name="cv_page_source" value="<?php echo esc_attr($cv_page_source ?? 'unknown'); ?>">
